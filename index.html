@@ -1,0 +1,160 @@
+import React, { useState, useEffect, useMemo } from 'react';
+
+// Lista de disciplinas iniciales.
+const INITIAL_DISCIPLINES = [
+  { id: 1, nombre: 'Civil', alias: 'a' },
+  { id: 2, nombre: 'Mecánica', alias: 'b' },
+  { id: 3, nombre: 'Eléctrica', alias: 'c' },
+  { id: 4, nombre: 'Instrumentación', alias: 'd' },
+  { id: 5, nombre: 'Procesos', alias: 'e' },
+  { id: 6, nombre: 'Tuberías', alias: 'f' },
+  { id: 7, nombre: 'Estructural', alias: 'g' },
+  { id: 8, nombre: 'Arquitectura', alias: 'h' },
+  { id: 9, nombre: 'Seguridad', alias: 'i' },
+  { id: 10, nombre: 'Ambiental', alias: 'j' },
+  { id: 11, nombre: 'Geotecnia', alias: 'k' },
+  { id: 12, nombre: 'Telecomunicaciones', alias: 'l' },
+];
+
+const App = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [officeReady, setOfficeReady] = useState(false);
+
+  // Inicializar Office.js
+  useEffect(() => {
+    Office.onReady((info) => {
+      if (info.host === Office.HostType.Excel) {
+        setOfficeReady(true);
+      }
+    });
+  }, []);
+
+  // Filtrar disciplinas según la búsqueda
+  const filteredDisciplines = useMemo(() => {
+    return INITIAL_DISCIPLINES.filter(d => 
+      d.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      d.alias.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [searchTerm]);
+
+  // Manejar selección/deselección
+  const toggleDiscipline = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  // Calcular el resumen ordenado
+  const getSummary = () => {
+    return INITIAL_DISCIPLINES
+      .filter(d => selectedIds.includes(d.id))
+      .map(d => d.alias)
+      .sort()
+      .join('');
+  };
+
+  // Escribir en Excel
+  const insertToExcel = async () => {
+    const summary = getSummary();
+    if (!summary) return;
+
+    try {
+      await Excel.run(async (context) => {
+        const range = context.workbook.getSelectedRange();
+        range.values = [[summary]];
+        await context.sync();
+      });
+    } catch (error) {
+      console.error("Error al escribir en Excel:", error);
+    }
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-800 font-sans p-4">
+      {/* Header */}
+      <header className="mb-4 border-b pb-2">
+        <h1 className="text-xl font-bold text-blue-700">Selector de Disciplinas</h1>
+        <p className="text-xs text-slate-500">Registra alias ordenados automáticamente</p>
+      </header>
+
+      {/* Buscador */}
+      <div className="relative mb-4">
+        <input 
+          type="text"
+          placeholder="Buscar disciplina o alias..."
+          className="w-full p-2 border rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Lista Checkeable */}
+      <div className="flex-1 overflow-y-auto bg-white rounded-md border shadow-inner p-2">
+        {filteredDisciplines.map((d) => (
+          <label 
+            key={d.id} 
+            className={`flex items-center p-2 mb-1 rounded cursor-pointer transition-colors ${
+              selectedIds.includes(d.id) ? 'bg-blue-50 border-blue-200' : 'hover:bg-slate-100'
+            }`}
+          >
+            <input 
+              type="checkbox"
+              className="mr-3 h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+              checked={selectedIds.includes(d.id)}
+              onChange={() => toggleDiscipline(d.id)}
+            />
+            <div className="flex justify-between w-full">
+              <span className="text-sm font-medium">{d.nombre}</span>
+              <span className="text-xs font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                {d.alias}
+              </span>
+            </div>
+          </label>
+        ))}
+        {filteredDisciplines.length === 0 && (
+          <p className="text-center py-10 text-slate-400">No se encontraron disciplinas</p>
+        )}
+      </div>
+
+      {/* Panel Inferior: Resultado y Botones */}
+      <div className="mt-4 p-3 bg-white border rounded-lg shadow-md">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-xs font-bold uppercase text-slate-400">Resultado:</span>
+          <span className="text-lg font-mono font-bold text-blue-600 tracking-widest">
+            {getSummary() || '---'}
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2">
+          <button 
+            onClick={clearSelection}
+            className="py-2 px-4 bg-slate-200 hover:bg-slate-300 rounded text-sm font-semibold transition-all"
+          >
+            Limpiar
+          </button>
+          <button 
+            onClick={insertToExcel}
+            disabled={selectedIds.length === 0}
+            className={`py-2 px-4 rounded text-sm font-semibold text-white transition-all ${
+              selectedIds.length === 0 ? 'bg-slate-300' : 'bg-blue-600 hover:bg-blue-700 shadow-md active:scale-95'
+            }`}
+          >
+            Insertar en Excel
+          </button>
+        </div>
+      </div>
+
+      {/* Status Footer */}
+      <footer className="mt-2 text-center">
+        <span className={`text-[10px] px-2 py-0.5 rounded-full ${officeReady ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+          {officeReady ? 'Excel Conectado' : 'Esperando a Excel...'}
+        </span>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
